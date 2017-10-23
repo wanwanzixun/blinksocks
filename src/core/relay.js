@@ -3,7 +3,12 @@ import uniqueId from 'lodash.uniqueid';
 import {Pipe} from './pipe';
 import {PIPE_ENCODE, PIPE_DECODE} from './middleware';
 import {CONNECT_TO_REMOTE, CONNECTION_CREATED} from '../presets';
-import {TcpInbound, TcpOutbound, TlsInbound, TlsOutbound, WsInbound, WsOutbound} from '../transports';
+import {
+  TcpInbound, TcpOutbound,
+  TlsInbound, TlsOutbound,
+  WsInbound, WsOutbound,
+  Http2Inbound, Http2Outbound
+} from '../transports';
 
 function preparePresets() {
   let presets = __PRESETS__;
@@ -124,7 +129,10 @@ export class Relay extends EventEmitter {
 const mapping = {
   'tcp': [TcpInbound, TcpOutbound],
   'tls': [TlsInbound, TlsOutbound],
-  'ws': [WsInbound, WsOutbound]
+  'ws': [WsInbound, WsOutbound],
+  'websocket': [WsInbound, WsOutbound],
+  'h2': [Http2Inbound, Http2Outbound],
+  'http2': [Http2Inbound, Http2Outbound]
 };
 
 export function createRelay(transport, context, proxyRequest = null) {

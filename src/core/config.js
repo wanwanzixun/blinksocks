@@ -105,13 +105,14 @@ export class Config {
     }
 
     // preload tls cert or tls key
-    if (__TRANSPORT__ === 'tls') {
+    if (server.tls_cert !== undefined) {
       logger.info(`[config] loading ${server.tls_cert}`);
       global.__TLS_CERT__ = loadFileSync(server.tls_cert);
-      if (__IS_SERVER__) {
-        logger.info(`[config] loading ${server.tls_key}`);
-        global.__TLS_KEY__ = loadFileSync(server.tls_key);
-      }
+    }
+
+    if (server.tls_key !== undefined) {
+      logger.info(`[config] loading ${server.tls_key}`);
+      global.__TLS_KEY__ = loadFileSync(server.tls_key);
     }
 
     global.__KEY__ = server.key;
@@ -264,16 +265,23 @@ export class Config {
   static _validateServer(server) {
     // transport
     if (server.transport !== undefined) {
-      if (!['tcp', 'tls', 'ws'].includes(server.transport)) {
-        throw Error('\'server.transport\' must be "tcp", "tls" or "ws"');
+      const transports = ['tcp', 'tls', 'ws', 'websocket', 'h2', 'http2'];
+      if (!transports.includes(server.transport)) {
+        throw Error(`'server.transport' must be one of [${transports}]`);
       }
-      if (server.transport === 'tls') {
-        if (typeof server.tls_cert !== 'string') {
-          throw Error('\'server.tls_key\' must be a string');
-        }
-        if (server.tls_cert === '') {
-          throw Error('\'server.tls_cert\' cannot be empty');
-        }
+    }
+
+    // tls_cert
+    if (server.tls_cert !== undefined) {
+      if (typeof server.tls_cert !== 'string' || server.tls_cert === '') {
+        throw Error('\'tls_cert\' is invalid');
+      }
+    }
+
+    // tls_key
+    if (server.tls_key !== undefined) {
+      if (typeof server.tls_key !== 'string' || server.tls_key === '') {
+        throw Error('\'tls_key\' is invalid');
       }
     }
 
@@ -333,19 +341,11 @@ export class Config {
     }
     const AVAILABLE_LOCAL_PROTOCOLS = [
       'tcp', 'socks', 'socks5', 'socks4', 'socks4a',
-      'http', 'https', 'ws', 'tls'
+      'http', 'ws', 'websocket', 'tls', 'h2', 'http2'
     ];
     const _protocol = protocol.slice(0, -1);
     if (!AVAILABLE_LOCAL_PROTOCOLS.includes(_protocol)) {
       throw Error(`service protocol must be: ${AVAILABLE_LOCAL_PROTOCOLS.join(', ')}`);
-    }
-    if (_protocol === 'tls') {
-      if (typeof json.tls_cert !== 'string' || json.tls_cert === '') {
-        throw Error('\'tls_cert\' must be set');
-      }
-      if (json.tls_key !== undefined && typeof json.tls_key !== 'string') {
-        throw Error('\'tls_key\' must be set');
-      }
     }
     // host
     if (!isValidHostname(host)) {

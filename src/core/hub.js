@@ -81,7 +81,7 @@ export class Hub extends EventEmitter {
           server.on('close', this._onClose);
           server.listen(address, () => resolve(server));
         }
-        else if (__LOCAL_PROTOCOL__ === 'ws') {
+        else if (__LOCAL_PROTOCOL__ === 'ws' || __LOCAL_PROTOCOL__ === 'websocket') {
           const server = new ws.Server({
             ...address,
             perMessageDeflate: false
@@ -98,6 +98,28 @@ export class Hub extends EventEmitter {
           server.on('secureConnection', this._onConnection);
           server.on('close', this._onClose);
           server.listen(address, () => resolve(server));
+        }
+        else if (__LOCAL_PROTOCOL__ === 'h2' || __LOCAL_PROTOCOL__ === 'http2') {
+          try {
+            const http2 = require('http2');
+            let server = null;
+            if (global.__TLS_KEY__ && global.__TLS_CERT__) {
+              server = http2.createSecureServer({key: [__TLS_KEY__], cert: [__TLS_CERT__], allowHTTP1: true});
+            } else {
+              server = http2.createServer();
+            }
+            server.on('stream', (stream) => {
+              const {session: {socket}} = stream;
+              this._onConnection(socket);
+            });
+            server.on('socketError', (err) => logger.error(err));
+            server.on('sessionError', (err) => logger.error(err));
+            server.on('streamError', (err) => logger.error(err));
+            server.on('unknownProtocol', (err) => logger.error(err));
+            server.listen(address, () => resolve(server));
+          } catch (err) {
+            logger.error(err);
+          }
         }
       }
     });

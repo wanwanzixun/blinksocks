@@ -186,13 +186,6 @@ describe('Config#_validateServer', () => {
     expect(() => Config._validateServer({...baseConf, transport: 'tcp'})).not.toThrow();
   });
 
-  it('should throw when server.transport is set to "tls" but "tls_cert" is invalid', () => {
-    expect(() => Config._validateServer({...baseConf, transport: 'tls'})).toThrow();
-    expect(() => Config._validateServer({...baseConf, transport: 'tls', tls_cert: null})).toThrow();
-    expect(() => Config._validateServer({...baseConf, transport: 'tls', tls_cert: ''})).toThrow();
-    expect(() => Config._validateServer({...baseConf, transport: 'tls', tls_cert: 'abc'})).not.toThrow();
-  });
-
   it('should __TRANSPORT__ set to tcp', () => {
     Config.init({...baseConf, transport: 'tcp'});
     expect(__TRANSPORT__).toBe('tcp');
