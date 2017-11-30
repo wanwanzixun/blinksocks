@@ -5,12 +5,13 @@ import tls from 'tls';
 import ws from 'ws';
 import LRU from 'lru-cache';
 import uniqueId from 'lodash.uniqueid';
+import * as MiddlewareManager from './middleware';
 import {Balancer} from './balancer';
 import {Config} from './config';
-import * as MiddlewareManager from './middleware';
-import {createRelay} from './relay';
-import {logger, dumpHex} from '../utils';
-import {tcp, http, socks} from '../proxies';
+import {Mux} from './mux';
+import {Relay} from './relay';
+import {dumpHex, logger} from '../utils';
+import {http, socks, tcp} from '../proxies';
 
 export class Hub {
 
@@ -20,7 +21,9 @@ export class Hub {
 
   _udpServer = null;
 
-  _relays = new Map(/* id: <relay> */);
+  _mux = new Mux();
+
+  _tcpRelays = new Map(/* id: <relay> */);
 
   _udpRelays = null; // LRU cache
 
@@ -39,8 +42,8 @@ export class Hub {
   terminate(callback) {
     // relays
     this._udpRelays.reset();
-    this._relays.forEach((relay) => relay.destroy());
-    this._relays.clear();
+    this._tcpRelays.forEach((relay) => relay.destroy());
+    this._tcpRelays.clear();
     MiddlewareManager.cleanup();
     // balancer
     if (__IS_CLIENT__) {
@@ -174,7 +177,7 @@ export class Hub {
         if (relay === undefined) {
           server.remoteAddress = address;
           server.remotePort = port;
-          relay = createRelay('udp', server, proxyRequest);
+          relay = Relay.create({transport: 'udp', presets: __PRESETS__, context: server, proxyRequest});
           relay.on('close', function onRelayClose() {
             // relays.del(key);
           });
@@ -218,21 +221,33 @@ export class Hub {
     if (__IS_CLIENT__) {
       this._switchServer();
     }
-    const cid = uniqueId(`${__TRANSPORT__}_`);
     logger.verbose(`[hub] [${context.remoteAddress}:${context.remotePort}] connected`);
-    const relay = createRelay(__TRANSPORT__, context, proxyRequest);
+    const cid = uniqueId(__TRANSPORT__ + '_');
+    const props = {
+      transport: __TRANSPORT__,
+      presets: __PRESETS__,
+      context,
+      proxyRequest,
+      isMux: (__MUX__ && __IS_SERVER__)
+    };
+    const relay = Relay.create(props);
     relay.id = cid;
-    relay.on('close', () => {
-      this._relays.delete(cid);
-    });
-    this._relays.set(cid, relay);
+    relay.on('close', () => this._tcpRelays.delete(cid));
+    this._tcpRelays.set(cid, relay);
+    if (__MUX__ && __IS_CLIENT__) {
+      this._mux.couple(relay);
+      proxyRequest.onConnected();
+    }
+    if (__MUX__ && __IS_SERVER__) {
+      this._mux.decouple(relay);
+    }
   }
 
   _switchServer() {
     const server = Balancer.getFastest();
     if (server) {
       Config.initServer(server);
-      logger.info(`[balancer] use server: ${__SERVER_HOST__}:${__SERVER_PORT__}`);
+      logger.info(`[balancer-${this._wkId}] use server: ${__SERVER_HOST__}:${__SERVER_PORT__}`);
     }
   }
 

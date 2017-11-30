@@ -30,14 +30,16 @@ export class TcpInbound extends Inbound {
     this.onReceive = this.onReceive.bind(this);
     this.onTimeout = this.onTimeout.bind(this);
     this.destroy = this.destroy.bind(this);
-    this._socket = context;
-    this._socket.on('error', this.onError);
-    this._socket.on('data', this.onReceive);
-    this._socket.on('drain', () => this.emit('drain'));
-    this._socket.on('timeout', this.onTimeout);
-    this._socket.on('end', this.destroy);
-    this._socket.on('close', this.destroy);
-    this._socket.setTimeout(__TIMEOUT__);
+    if (context) {
+      this._socket = context;
+      this._socket.on('error', this.onError);
+      this._socket.on('data', this.onReceive);
+      this._socket.on('drain', () => this.emit('drain'));
+      this._socket.on('timeout', this.onTimeout);
+      this._socket.on('end', this.destroy);
+      this._socket.on('close', this.destroy);
+      this._socket.setTimeout(__TIMEOUT__);
+    }
   }
 
   onError(err) {
@@ -274,7 +276,7 @@ export class TcpOutbound extends Outbound {
           await this.connect({host, port});
         }
         if (__IS_CLIENT__) {
-          logger.info(`[tcp:outbound] [${this.remote}] request: ${host}:${port}`);
+          !__MUX__ && logger.info(`[tcp:outbound] [${this.remote}] request: ${host}:${port}`);
           await this.connect({host: __SERVER_HOST__, port: __SERVER_PORT__});
         }
         this._socket.on('connect', () => {
@@ -304,7 +306,6 @@ export class TcpOutbound extends Outbound {
     // close alive connection before create a new one
     if (this._socket && !this._socket.destroyed) {
       this._socket.destroy();
-      this._socket = null;
     }
     this._socket = await this._connect({host, port});
     this._socket.on('error', this.onError);
