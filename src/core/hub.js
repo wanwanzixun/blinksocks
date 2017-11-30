@@ -222,7 +222,7 @@ export class Hub {
       this._switchServer();
     }
     logger.verbose(`[hub] [${context.remoteAddress}:${context.remotePort}] connected`);
-    const cid = uniqueId(__TRANSPORT__ + '_');
+    const cid = uniqueId() | 0;
     const props = {
       transport: __TRANSPORT__,
       presets: __PRESETS__,

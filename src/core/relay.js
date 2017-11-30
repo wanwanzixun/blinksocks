@@ -17,15 +17,6 @@ const mapping = {
   'ws': [WsInbound, WsOutbound]
 };
 
-function preparePresets(presets) {
-  // add at least one "tracker" preset to the list
-  const last = presets[presets.length - 1];
-  if (!last || last.name !== 'tracker') {
-    presets = presets.concat([{'name': 'tracker'}]);
-  }
-  return presets;
-}
-
 // .on('encode')
 // .on('decode')
 // .on('close')
@@ -69,7 +60,7 @@ export class Relay extends EventEmitter {
     this._context = context;
     this._proxyRequest = proxyRequest;
     // pipe
-    this._presets = preparePresets(presets);
+    this._presets = this.preparePresets(presets);
     this._pipe = this.createPipe(this._presets);
     // outbound
     this._inbound = new Inbound({context: context, pipe: this._pipe});
@@ -138,7 +129,7 @@ export class Relay extends EventEmitter {
     const {type, suite, data} = action.payload;
     logger.verbose(`[relay] changing presets suite to: ${JSON.stringify(suite)}`);
     // 1. update preset list
-    this.updatePresets(preparePresets([
+    this.updatePresets(this.preparePresets([
       ...suite.presets,
       {'name': 'auto-conf'}
     ]));
@@ -196,6 +187,25 @@ export class Relay extends EventEmitter {
 
   hasListener(name) {
     return this.listenerCount(name) > 0;
+  }
+
+  /**
+   * preprocess preset list
+   * @param presets
+   * @returns {[]}
+   */
+  preparePresets(presets) {
+    const first = presets[0];
+    const last = presets[presets.length - 1];
+    // auto add "mux" preset
+    if (this._isMux && (!first || first.name !== 'mux')) {
+      presets = [{'name': 'mux'}].concat(presets);
+    }
+    // add at least one "tracker" preset to the list
+    if (!last || last.name !== 'tracker') {
+      presets = presets.concat([{'name': 'tracker'}]);
+    }
+    return presets;
   }
 
   /**
