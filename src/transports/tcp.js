@@ -30,8 +30,8 @@ export class TcpInbound extends Inbound {
     this.onReceive = this.onReceive.bind(this);
     this.onTimeout = this.onTimeout.bind(this);
     this.destroy = this.destroy.bind(this);
-    if (context) {
-      this._socket = context;
+    this._socket = context;
+    if (__IS_SERVER__ || !this._isMux) {
       this._socket.on('error', this.onError);
       this._socket.on('data', this.onReceive);
       this._socket.on('drain', () => this.emit('drain'));
