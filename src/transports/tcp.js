@@ -29,6 +29,7 @@ export class TcpInbound extends Inbound {
     this.onError = this.onError.bind(this);
     this.onReceive = this.onReceive.bind(this);
     this.onTimeout = this.onTimeout.bind(this);
+    this.onHalfClose = this.onHalfClose.bind(this);
     this.destroy = this.destroy.bind(this);
     this._socket = context;
     if (__IS_SERVER__ || !this._isMux) {
@@ -36,18 +37,18 @@ export class TcpInbound extends Inbound {
       this._socket.on('data', this.onReceive);
       this._socket.on('drain', () => this.emit('drain'));
       this._socket.on('timeout', this.onTimeout);
-      this._socket.on('end', this.destroy);
+      this._socket.on('end', this.onHalfClose);
       this._socket.on('close', this.destroy);
       this._socket.setTimeout(__TIMEOUT__);
     }
   }
 
   onError(err) {
-    logger.warn(`[tcp:inbound] [${this.remote}] ${err.code || ''} - ${err.message}`);
+    logger.warn(`[tcp:inbound] [${this.remote}] ${err.message}`);
   }
 
   onReceive(buffer) {
-    if (this._outbound.writable || !this._isConnectedToRemote) {
+    if ((this._outbound && this._outbound.writable) || !this._isConnectedToRemote) {
       const direction = __IS_CLIENT__ ? PIPE_ENCODE : PIPE_DECODE;
       this._pipe.feed(direction, buffer);
     }
@@ -67,8 +68,14 @@ export class TcpInbound extends Inbound {
   }
 
   onTimeout() {
-    logger.warn(`[tcp:inbound] [${this.remote}] timeout: no I/O on the connection for ${__TIMEOUT__ / 1e3}s`);
-    this.destroy();
+    if (this._socket) {
+      logger.warn(`[tcp:inbound] [${this.remote}] timeout: no I/O on the connection for ${__TIMEOUT__ / 1e3}s`);
+      this.destroy();
+    }
+  }
+
+  onHalfClose() {
+    this._socket && this._socket.setTimeout(2e3);
   }
 
   get bufferSize() {
@@ -191,14 +198,15 @@ export class TcpOutbound extends Outbound {
     this.onError = this.onError.bind(this);
     this.onReceive = this.onReceive.bind(this);
     this.onTimeout = this.onTimeout.bind(this);
+    this.onHalfClose = this.onHalfClose.bind(this);
   }
 
   onError(err) {
-    logger.warn(`[tcp:outbound] [${this.remote}] ${err.code || ''} - ${err.message}`);
+    logger.warn(`[tcp:outbound] [${this.remote}] ${err.message}`);
   }
 
   onReceive(buffer) {
-    if (this._inbound.writable) {
+    if (this._inbound && this._inbound.writable) {
       const direction = __IS_CLIENT__ ? PIPE_DECODE : PIPE_ENCODE;
       this._pipe.feed(direction, buffer);
     }
@@ -218,8 +226,14 @@ export class TcpOutbound extends Outbound {
   }
 
   onTimeout() {
-    logger.warn(`[tcp:outbound] [${this.remote}] timeout: no I/O on the connection for ${__TIMEOUT__ / 1e3}s`);
-    this.destroy();
+    if (this._socket) {
+      logger.warn(`[tcp:outbound] [${this.remote}] timeout: no I/O on the connection for ${__TIMEOUT__ / 1e3}s`);
+      this.destroy();
+    }
+  }
+
+  onHalfClose() {
+    this._socket && this._socket.setTimeout(2e3);
   }
 
   get bufferSize() {
@@ -309,7 +323,7 @@ export class TcpOutbound extends Outbound {
     }
     this._socket = await this._connect({host, port});
     this._socket.on('error', this.onError);
-    this._socket.on('end', this.destroy);
+    this._socket.on('end', this.onHalfClose);
     this._socket.on('close', this.destroy);
     this._socket.on('timeout', this.onTimeout);
     this._socket.on('data', this.onReceive);
